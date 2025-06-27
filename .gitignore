@@ -1,3 +1,7 @@
+# typical evaluation results (pattern from example call in README)
+datasets/**/spinach_output_test.json
+datasets/**/spinach_output_test.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -184,3 +188,8 @@ datasets/qald_9_plus/raw_files/*
 datasets/LC-QuAD2.0/raw_files
 
 .files/*
+/.chainlit
+/.idea
+/dump.rdb
+/spinach.iml
+spinach_agent/.chainlit

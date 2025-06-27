@@ -16,22 +16,26 @@ warnings.filterwarnings(
 
 class BaseParser:
     @classmethod
-    def initialize(engine: str):
+    def initialize(engine: str, dataset: str):
         raise NotImplementedError("Subclasses should implement this method")
 
     @classmethod
-    def run_batch(cls, questions: list[str]):
+    def run_batch(cls, questions: list[str], batch_size):
         return asyncio.run(
             cls.runnable.with_config(
-                {"recursion_limit": 60, "max_concurrency": 50}
+                {"recursion_limit": 60, "max_concurrency": batch_size}
             ).abatch(questions)
         )
 
 
-def get_prune_edges_chain(engine: str) -> Runnable:
+def get_prune_edges_chain(engine: str, dataset_id: str) -> Runnable:
+    if dataset_id == "https://text2sparql.aksw.org/2025/corporate/":
+        template = "org/prune_outgoing_edges.prompt"
+    else:
+        template = "prune_outgoing_edges.prompt"
     return (
         llm_generation_chain(
-            template_file="prune_outgoing_edges.prompt",
+            template_file=template,
             engine=engine,
             max_tokens=1000,
         )
@@ -89,8 +93,8 @@ def extract_code_block_from_output(llm_output: str, code_block: str) -> str:
 
 
 @chain
-def sparql_string_to_sparql_object(sparql: str) -> SparqlQuery:
-    return SparqlQuery(sparql=sparql)
+def sparql_string_to_sparql_object(inputs: dict) -> SparqlQuery:
+    return SparqlQuery(sparql=inputs["sparql"], datasetId=inputs["datasetId"])
 
 
 @chain

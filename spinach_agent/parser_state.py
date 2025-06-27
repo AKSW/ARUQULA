@@ -9,13 +9,14 @@ import chainlit as cl
 from parser_python_interface import prettify_sparql
 from wikidata_utils import (
     convert_if_date,
-    execute_sparql,
     extract_id_from_uri,
     get_actual_names_from_results,
     get_name_from_qid,
     normalize_result_string,
     try_to_optimize_query,
 )
+
+from kg_utils import (execute_sparql)
 
 def _truncate_json(data: dict):
     """
@@ -38,6 +39,8 @@ def json_to_panda_string(data: dict) -> str:
     df = _truncate_json(data)
     return df.to_string(index=False, justify="left", max_rows=10)
 
+def split_string_by_length(text, length, prefix='', suffix=''):
+    return [f"{prefix}{text[i:i + length]}{suffix}" for i in range(0, len(text), length)]
 
 def json_to_panda_markdown(data: dict, head = 10) -> str:
     if type(data) == bool:
@@ -68,10 +71,9 @@ def json_to_panda_markdown(data: dict, head = 10) -> str:
 
     return truncated_df.to_markdown(index=False)
 
-
 class SparqlQuery:
 
-    def __init__(self, sparql: Optional[str] = None):
+    def __init__(self, sparql: Optional[str] = None, datasetId: str = "https://text2sparql.aksw.org/2025/dbpedia/"):
         if "PXXX" in sparql or "PYYY" in sparql or "PZZZ" in sparql:
             self.is_valid = False
         self.sparql = SparqlQuery.clean_sparql(sparql)
@@ -81,7 +83,7 @@ class SparqlQuery:
                 self.is_valid = False
                 return
         self.is_valid = True
-        
+        self.datasetId = datasetId
         self.execution_result = None
         
     @staticmethod
@@ -90,18 +92,39 @@ class SparqlQuery:
             return sparql
         cleaned_sparql = sparql.strip()
 
-        cleaned_sparql = re.sub(r"#.*", "", cleaned_sparql).strip()  # Remove comments
+        # cleaned_sparql = re.sub(r"#.*", "", cleaned_sparql).strip()  # Remove comments
         cleaned_sparql = try_to_optimize_query(cleaned_sparql)
         # cleaned_sparql = re.sub(
         #     r"\s+", " ", cleaned_sparql
         # )  # Remove line breaks and other extra whitespaces
         cleaned_sparql = prettify_sparql(cleaned_sparql)
 
+        PREFIXES = {
+            "dbr": "http://dbpedia.org/resource/",
+            "dbo": "http://dbpedia.org/ontology/",
+            "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+            "pv": "http://ld.company.org/prod-vocab/",
+            "ecc": "https://ns.eccenca.com/",
+            "owl": "http://www.w3.org/2002/07/owl#",
+            "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+            "dct": "http://purl.org/dc/terms/",
+            "void": "http://rdfs.org/ns/void#",
+            "xsd": "http://www.w3.org/2001/XMLSchema#",
+            "foaf": "http://xmlns.com/foaf/0.1/",
+            "vann": "http://purl.org/vocab/vann/"
+        }
+
+        prefixes_to_add = ""
+        for prefix, uri in PREFIXES.items():
+            if f"PREFIX {prefix}:" not in cleaned_sparql and f"{prefix}:" in cleaned_sparql:
+                prefixes_to_add += f"PREFIX {prefix}: <{uri}>\n"
+        cleaned_sparql = f"{prefixes_to_add}\n{cleaned_sparql}"
+
         return cleaned_sparql
 
     def execute(self):
         self.execution_result, self.execution_status = execute_sparql(
-            self.sparql, return_status=True
+            self.datasetId, self.sparql, return_status=True
         )
 
     def has_results(self) -> bool:
@@ -181,7 +204,6 @@ class SparqlQuery:
     def __hash__(self):
         return hash(self.sparql)
 
-
 def merge_dictionaries(dictionary_1: dict, dictionary_2: dict) -> dict:
     """
     Merges two dictionaries, combining their key-value pairs.
@@ -206,20 +228,27 @@ def merge_sets(set_1: set, set_2: set) -> set:
 
 
 def add_item_to_list(_list: list, item) -> list:
+    if item is None:
+        return _list.copy()
     ret = _list.copy()
-    # if item not in ret:
-    ret.append(item)
+    if type(item) == list:
+        ret.extend(item)
+    else:
+        ret.append(item)
     return ret
 
 
 class BaseParserState(TypedDict):
     question: str
+    questionId: str
     conversation_history: List
     engine: str
     response: str
     generated_sparqls: Annotated[list[SparqlQuery], add_item_to_list]
     final_sparql: SparqlQuery
     action_counter: Annotated[int, operator.add]
+    dataset: str
+    language: str
 
 
 class GraphExplorerParserState(BaseParserState):
@@ -229,8 +258,10 @@ class GraphExplorerParserState(BaseParserState):
 
 class Action:
     possible_actions = [
-        "get_wikidata_entry",
-        "search_wikidata",
+        "get_knowledgegraph_entry",
+        "search_entity_by_label",
+        "search_property_by_label",
+        "search_class_by_label",
         "execute_sparql",
         "get_property_examples",
         "stop",
@@ -246,16 +277,16 @@ class Action:
         self.observation = None
         self.observation_markdown = None
 
-        assert self.action_name in Action.possible_actions
+        assert self.action_name in Action.possible_actions, f"'{self.action_name}' not in possible actions"
 
     def to_jinja_string(self, include_observation: bool) -> str:
         if not self.observation:
-            observation = "Did not find any results."
+            observation = "\tDid not find any results."
         else:
             observation = self.observation
         ret = f"Thought: {self.thought}\nAction: {self.action_name}({self.action_argument})\n"
         if include_observation:
-            ret += f"Observation: {observation}\n"
+            ret += f"Observation: \n{observation}\n"
         return ret
     
     async def print_chainlit(self):
@@ -266,7 +297,7 @@ class Action:
                 step_action.output = f"{self.action_name}({self.action_argument})"
                 
             if not self.observation:
-                observation = "Did not find any results."
+                observation = "\tDid not find any results."
             elif self.observation_markdown:
                 # if markdown is available, this is from `execute_sparql`, use it
                 observation = self.observation_markdown
@@ -274,7 +305,7 @@ class Action:
                 observation = self.observation
                 
             observation_language = None
-            if self.action_name == "get_wikidata_entry":
+            if self.action_name == "get_knowledgegraph_entry":
                 observation_language = "python"
             
             async with cl.Step(name="Observation", type="tool", language=observation_language) as step_observation:
@@ -284,10 +315,11 @@ class Action:
 
     def __repr__(self) -> str:
         if not self.observation:
-            observation = "Did not find any results."
+            observation = "\tDid not find any results."
         else:
             observation = self.observation
-        return f"Thought: {self.thought}\nAction: {self.action_name}({self.action_argument})\nObservation: {observation}"
+        multiline_thought = split_string_by_length(self.thought, 140, "\t", "\n")
+        return f"\nThought: \n{' '.join(multiline_thought)}\nAction: {self.action_name}({self.action_argument})\n\nObservation: \n{observation}"
 
     def __eq__(self, other):
         if not isinstance(other, Action):

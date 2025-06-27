@@ -1,0 +1,13 @@
+services:
+  spinach-gpt4:
+    build: 
+      context: ./
+    environment:
+      - LLM_API_KEY=$LLM_API_KEY
+      - LLM_ENGINE=$LLM_ENGINE
+      - API_BASE=$API_BASE
+      - OPENAI_API_KEY=$OPENAI_API_KEY
+      - OPENROUTER_API_KEY=$OPENROUTER_API_KEY
+    restart: unless-stopped
+    ports:
+      - "5555:8085"

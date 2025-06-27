@@ -11,6 +11,15 @@ prompt_logging:
     - "modify_datapoint.prompt"
 
 llm_endpoints:
+  - api_base: https://openrouter.ai/api/v1
+    api_key: OPENROUTER_API_KEY
+    engine_map:
+      deepseek-v3-202503: openrouter/deepseek/deepseek-chat-v3-0324
+      meta-llama-3.3: openrouter/meta-llama/llama-3.3-70b-instruct
+      meta-llama-4-maverick: openrouter/meta-llama/llama-4-maverick
+      meta-llama-4-scout: openrouter/meta-llama/llama-4-scout
+      qwen-2.5: openrouter/qwen/qwen-2.5-72b-instruct
+      qwen-turbo: openrouter/qwen/qwen-turbo
   - api_base: https://ovalopenairesource.openai.azure.com
     api_version: "2024-02-15-preview"
     api_key: "AZURE_OPENAI_API_KEY"
@@ -23,7 +32,11 @@ llm_endpoints:
     engine_map: # OpenAI models don't need the "openai/" prefix
       gpt-35-turbo: gpt-3.5-turbo-0125
       gpt-4: gpt-4-turbo-2024-04-09
-
+      gpt-4o: gpt-4o
+      gpt-4o-mini: gpt-4o-mini
+      gpt-4.1-nano: gpt-4.1-nano
+      gpt-4.1-mini: gpt-4.1-mini
+      gpt-4.1: gpt-4.1
   - api_key: TOGETHER_API_KEY
     engine_map: # TODO non-instruct models don't work well because of LiteLLM's formatting issues, does not work with free accounts because of the 1 QPS limit
       llama-2-70b: together_ai/togethercomputer/llama-2-70b
@@ -41,3 +54,8 @@ llm_endpoints:
     prompt_format: distilled
     engine_map:
       wikisp: huggingface/wikisp
+
+  - api_base: http://localhost:11434/api/generate
+    api_key: LOCAL_API_KEY
+    engine_map:
+      llama: ollama/llama3.1:8b

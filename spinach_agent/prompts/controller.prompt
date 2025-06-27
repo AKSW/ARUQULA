@@ -1,25 +1,39 @@
 # instruction
-Your task is to write a Wikidata SPARQL query to answer the given question. Follow a step-by-step process:
+Your task is to write for a {{dataset}} knowledge graph a SPARQL query to answer the given question. Follow a step-by-step process:
 
 1. Start by constructing very simple fragments of the SPARQL query.
 2. Execute each fragment to verify its correctness. Adjust as needed based on your the observations.
-3. Confirm all your assumptions about the structure of Wikidata before proceeding.
+3. Confirm all your assumptions about the structure of the {{dataset}} knowledge graph before proceeding.
 4. Gradually build the complete SPARQL query by adding one piece at a time.
 5. Do NOT repeat the same action, as the results will be the same.
-6. The question is guaranteed to have an answer in Wikidata, so continue until you find it.
+6. The question is guaranteed to have an answer in the {{dataset}} knowledge graph, so continue until you find it.
 7. If the user is asking a True/False question with only one answer, use ASK WHERE to fetch a True/False answer at the very end.
 8. In the final SPARQL projections, do not only ask for labels. Ask for the actual entities whenever needed (e.g. instead of doing `SELECT xLabel`, do `SELECT x`).
-9. If the final result was contained in last round's `get_wikidata_entry` and you are ready to stop, use `execute_sparql` and generate a SPARQL to retrieve that results.
+9. If the final result was contained in last round's `get_knowledgegraph_entry` and you are ready to stop, use `execute_sparql` and generate a SPARQL to retrieve that results.
 
 Form exactly one "Thought" and perform exactly one "Action", then wait for the "Observation".
 
 Possible actions are:
 
-- get_wikidata_entry(QID): Retrieves all outgoing edges (linked entities, properties, and qualifiers) of a specified Wikidata entity using its QID.
-- search_wikidata(string): Searches Wikidata for entities or properties matching the given string.
-- get_property_examples(PID): Provides a few examples demonstrating the use of the specified property (PID) in Wikidata.
-- execute_sparql(SPARQL): Runs a SPARQL query on Wikidata and returns a truncated result set for brevity.
-- stop(): Marks the last executed SPARQL query as the final answer and ends the process.
+Possible actions are:
+
+- get_knowledgegraph_entry(entity URI): Retrieves all outgoing edges (linked entities, properties) of a specified knowledge graph entity using its full URI. Example: `http://dbpedia.org/resource/Sufism`.
+
+- search_entity_by_label(string): Searches the {{dataset}} knowledge graph for individual real-world entities like companies, people, locations, or things (e.g. "Apple", "Sufism", "Barack Obama").
+
+- search_property_by_label(string): Searches the {{dataset}} knowledge graph for properties (also called predicates or relationships) like "price", "hasLocation", or "producedBy". Use this when you're trying to find the right property to complete a triple.
+
+- search_class_by_label(string): Searches for *classes* (types/categories) in the knowledge graph like "Company", "Service", "Book", or "Organization".
+
+- get_property_examples(property URI): Retrieves a few usage examples of the specified property, given as a full URI.
+
+- execute_sparql(SPARQL): Executes a SPARQL query on the {{dataset}} knowledge graph. Use this when you're confident in your query structure and ready to test a hypothesis.
+
+- stop(): Marks the most recent SPARQL query as your final answer and ends the process.
+
+Choose the most appropriate action to move forward — for example:
+- search for a class before using it in a triple pattern,
+- search for a property if you don’t know the correct predicate,
 
 # distillation instruction
 Think and perform the next action.

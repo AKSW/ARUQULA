@@ -104,28 +104,35 @@ def eval_file(c, input_file="eval_log.json", field="all", output_file="eval.json
 def evaluate_parser(
     c,
     parser_type,
+    text2sparql_dataset_id="https://text2sparql.aksw.org/2025/dbpedia/",
     engine="gpt-4o",
     dataset="new_dataset/dev_cleaned.json",
     subsample=3,
+    batch_size=1,
     offset=0,
     output_file="output.json",
     regex_use_select_distinct_and_id_not_label=False,
     llm_extract_prediction_if_null=False,
+    write_csv=False
 ):
     command = (
         f"python spinach_agent/evaluate_parser.py "
+        f"--text2sparql-dataset-id {text2sparql_dataset_id} "
         f"--engine {engine} "
         f"--dataset {dataset} "
+        f"--batch-size {batch_size} "
         f"--subsample {subsample} "
         f"--offset {offset} "
         f"--output_file {output_file} "
         f"--parser_type {parser_type} "
     )
-    
+
     # Add optional flags based on conditions
     if regex_use_select_distinct_and_id_not_label:
         command += "--regex_use_select_distinct_and_id_not_label "
     if llm_extract_prediction_if_null:
         command += "--llm_extract_prediction_if_null "
-
+    if write_csv:
+        command += "--write_csv "
+    print(command)
     c.run(command)

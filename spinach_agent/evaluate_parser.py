@@ -15,15 +15,16 @@ from spinach_agent.part_to_whole_parser import PartToWholeParser
 
 sys.path.insert(0, "./")
 from spinach_agent.parser_state import SparqlQuery, state_to_dict
-from wikidata_utils import execute_sparql
-
+from kg_utils import execute_sparql, DATASETS
 
 logger = get_logger(__name__)
 
 def calculate_metrics(
     results: List[Dict],
     use_existing_predictions = True,
-    gold_sparqls = []
+    gold_sparqls = [],
+    datasetId: str = "https://text2sparql.aksw.org/2025/corporate/",
+    engine: str = "none"
 ):
     count = 0
     strict_em_count = 0
@@ -37,6 +38,7 @@ def calculate_metrics(
     for idx, entry in tqdm(enumerate(
         results
     ), "prepare evaluation"):
+
         gold_answer = entry["gold_answer_tuple"]
         predicted_sparql = entry["predicted_sparql"]
         question = entry["question"]
@@ -52,13 +54,13 @@ def calculate_metrics(
                 output["predicted_sparql"], output["predicted_answer_tuple"] = None, []
             else:
                 if type(predicted_sparql) == str:
-                    predicted_sparql = SparqlQuery(predicted_sparql)
+                    predicted_sparql = SparqlQuery(datasetId=datasetId, sparql=predicted_sparql)
                 if predicted_sparql.execution_result is None:
                     predicted_sparql.execute()
                 predicted_answer = predicted_sparql.execution_result
                 output["predicted_sparql"] = predicted_sparql.sparql
                 output["predicted_answer_tuple"] = predicted_sparql.execution_result
-        
+
         if output["predicted_sparql"] is None:
             print("Warning: a SPARQL query is recorded as None")
 
@@ -85,7 +87,7 @@ def calculate_metrics(
         if f1 == 1:
             strict_em_count += 1
             
-
+    print(f"\tEngine: {engine}")
     print(f"\tTotal number of examples with results and hereby evaluated = {len(results)}")
     print(f"\trow-major F1 = {f1_score *100 / count:0.2f}%")
     print(f"\t% of F1 == 1 (row-major EM) = {strict_em_count * 100 / count:.2f}%")
@@ -118,6 +120,7 @@ def _modify_query(query):
 
 
 async def post_processing(
+    text2sparql_dataset_id,
     results,
     regex_use_select_distinct_and_id_not_label = False,
     llm_extract_prediction_if_null = False
@@ -138,9 +141,9 @@ async def post_processing(
         # LLM extracts a prediction
         if llm_extract_prediction_if_null:
             
-            if results[i]['predicted_sparql'] is None or execute_sparql(results[i]['predicted_sparql']) == []:
+            if results[i]['predicted_sparql'] is None or execute_sparql(text2sparql_dataset_id, results[i]['predicted_sparql']) == []:
                 final_sparql = await extract_sparql.ainvoke(
-                    {
+                    {   "dataset": text2sparql_dataset_id,
                         "question": results[i]["question"],
                         "trace": results[i]["actions"]
                     }
@@ -156,12 +159,16 @@ async def post_processing(
             if results[i]['predicted_sparql']:
                 results[i]['predicted_sparql'] = _modify_query(results[i]['predicted_sparql'])
 
+        results[i]['predicted_sparql'] = results[i]['predicted_sparql']
+
     return results
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--output_file", type=str, required=True)
+    parser.add_argument("--text2sparql-dataset-id", type=str, required=False, default="https://text2sparql.aksw.org/2025/dbpedia/")
     parser.add_argument(
         "--subsample",
         type=int,
@@ -173,6 +180,12 @@ if __name__ == "__main__":
         type=int,
         default=0,
         help="Where in the dataset start subsampling.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1,
+        help="How many process should be run in parallel.",
     )
     parser.add_argument("--engine", type=str, required=True)
     parser.add_argument(
@@ -195,9 +208,7 @@ if __name__ == "__main__":
         "--write_csv",
         action='store_true',
         help="If enabled, write a CSV file for the JSON output at the same directory as output_file",
-    )    
-
-
+    )
     args = parser.parse_args()
 
     with open(args.dataset) as input_file:
@@ -209,23 +220,29 @@ if __name__ == "__main__":
     
     # load the dataset and execute all sparqls
     if args.subsample >= 0:
-        selected_dataset = dataset[args.offset : args.offset + args.subsample]
+        selected_dataset = dataset[args.offset : args.offset + args.subsample ]
     else:
         selected_dataset = dataset[args.offset : ]
+
     for d in tqdm(selected_dataset, desc="Loading dataset and executing its gold SPARQLs", position=0, leave=True):
-        results = execute_sparql(d["sparql"])
+        results = execute_sparql(args.text2sparql_dataset_id, d["sparql"])
         if results == []:
+            print("skipping question/query pair as the SPARQL query does return an empty resultset")
             continue
-        questions.append({"question": d["question"], "conversation_history": []})
+        questions.append({"question": d["question"], "questionId": d["id"], "conversation_history": []})
         gold_answers.append(
             results
         ) # we do not convert to string here
         gold_sparqls.append(d["sparql"])
 
+        if len(questions) == args.subsample:
+            break
+
+
 
     semantic_parser_class = None
     if args.parser_type == "part_to_whole":
-        semantic_parser_class = GraphExplorerParser = PartToWholeParser
+        semantic_parser_class = PartToWholeParser
     elif args.parser_type == "graph_explorer":
         semantic_parser_class = GraphExplorerParser
     elif args.parser_type == "fine_tuned":
@@ -233,16 +250,16 @@ if __name__ == "__main__":
     else:
         raise ValueError("Unknown --args.parser_type", args.parser_type)
 
-    semantic_parser_class.initialize(engine=args.engine)
+    semantic_parser_class.initialize(engine=args.engine, dataset_id=args.text2sparql_dataset_id)
     try:
         chain_output = semantic_parser_class.run_batch(
-            questions,
+            questions, args.batch_size
         )
     finally:
         write_prompt_logs_to_file()
 
     sparql_query_results = []
-    with open(args.output_file.replace(".json", ".log"), "w") as log_file:
+    with open(args.output_file.replace(".json", ".log.json"), "w") as log_file:
         all_logs = [state_to_dict(qr) for qr in chain_output]
         json.dump(all_logs, log_file, indent=2, ensure_ascii=False, default=vars)
         
@@ -250,6 +267,7 @@ if __name__ == "__main__":
             sparql_query_results.append(qr.get("final_sparql", None))
 
     results = asyncio.run(post_processing(
+        args.text2sparql_dataset_id,
         chain_output,
         regex_use_select_distinct_and_id_not_label=args.regex_use_select_distinct_and_id_not_label,
         llm_extract_prediction_if_null=args.llm_extract_prediction_if_null
@@ -259,8 +277,9 @@ if __name__ == "__main__":
         results[i].update({
             "gold_answer_tuple": gold_answers[i],
         })
-    
-    results = calculate_metrics(results)
+
+    # this executes the gold and predicted query against the endpoint and calculates the resulting f1 measure
+    results = calculate_metrics(datasetId=args.text2sparql_dataset_id, results=results, engine=args.engine)
     
     # sort the result dict
     all_outputs = []
@@ -268,14 +287,17 @@ if __name__ == "__main__":
         results[i].update({
             "gold_sparql": gold_sparqls[i],
         })
-        all_outputs.append(OrderedDict((key, results[i][key]) for key in [
+        query_results = { key: results[i][key] for key in [
             "question",
             "predicted_sparql",
             "gold_sparql",
             "f1",
             "predicted_answer_tuple",
             "gold_answer_tuple",
-        ]))
+        ]}
+        query_results["engine"] = args.engine;
+        query_results["dataset"] = args.text2sparql_dataset_id;
+        all_outputs.append(OrderedDict(query_results))
 
     with open(args.output_file, "w") as output_file:
         json.dump(all_outputs, output_file, indent=2, ensure_ascii=False)
@@ -283,6 +305,8 @@ if __name__ == "__main__":
     if args.write_csv:
         # Prepare the CSV output
         csv_columns = [
+            "dataset",
+            "engine",
             "question",
             "gold_answer_set",
             "gold_answer_tuple",
@@ -299,10 +323,10 @@ if __name__ == "__main__":
         ]
 
         if gold_sparqls:
-            csv_columns.insert(1, "gold_sparql")
+            csv_columns.insert(3, "gold_sparql")
 
         with open(args.output_file.replace(".json", ".csv"), "w", newline="") as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
+            writer = csv.DictWriter(csvfile, fieldnames=csv_columns, delimiter=',', quoting=csv.QUOTE_ALL)
             writer.writeheader()
 
             for output in all_outputs:

@@ -1,0 +1,45 @@
+# instruction
+At each turn, you are given a Corporate knowledge graph entry and a question.
+You want to write a SPARQL query that answers the question.
+As the first step, remove the parts of the Corporate knowledge graph entry that could not be potentially helpful when writing the SPARQL.
+The output should be a json object containing part of the Corporate knowledge graph entry.
+
+# distillation instruction
+Prune this Corporate knowledge graph entry.
+
+# input
+Corporate knowledge graph entry for C247-3833661 - Encoder Transformer (http://ld.company.org/prod-instances/hw-C247-3833661):
+{
+    "instance of (http://www.w3.org/1999/02/22-rdf-syntax-ns#type)": "Hardware",
+    "compatible product (http://ld.company.org/prod-vocab/compatibleProduct)": [
+        "Y728-2083256 - Gauge Crystal Encoder",
+        "R287-3749176 - Log-periodic Memristor Encoder",
+        "Y676-8284278 - Encoder Warp"
+    ],
+    "depth (mm) (http://ld.company.org/prod-vocab/depth_mm)": 12,
+    "has category (http://dbpedia.org/ontology/isPartOf)": [
+        "Encoder",
+        "Transformer"
+    ],
+    "has product manager" (http://ld.company.org/prod-vocab/hasProductManager)": "Ratt Beyer",
+    "has reliability index (http://dbpedia.org/ontology/timeZone)": "Mountain Time Zone",
+    "height (mm) (http://ld.company.org/prod-vocab/height_mm)": 58
+}
+
+Question: "What is the height of C247-3833661 - Encoder Transformer?"
+
+# output
+{
+  "height (mm) (http://ld.company.org/prod-vocab/height_mm)": 58
+}
+
+
+# input
+Corporate knowledge graph entry for "{{ entity_and_description }}":
+{{ outgoing_edges }}
+
+{% for i in range(0, conversation_history|length) %}
+(Context) Past-turn Question: "{{ conversation_history[i]["question"] }}"
+{% endfor %}
+
+Current Question: "{{ question }}"

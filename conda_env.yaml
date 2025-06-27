@@ -1,4 +1,4 @@
-name: wikidata
+name: text2sparql
 channels:
   - conda-forge
   - defaults
@@ -6,11 +6,16 @@ dependencies:
   - python=3.10
   - pip
   - make
-  - redis # Redis is used to persist FastAPI's rate limit data, and cache LLM outputs. This installs redis-server
+  - redis-server
   - pip:
+    - redis==5.2.1
+    - flask
     - invoke # used for running multi-part commands. A more Python-friendly alternative to Make
     - datasets
+    - docker
+    - chainlit
     - jupyter
+    - gunicorn
     - evaluate
     - PyExecJS
     - rdflib
@@ -24,3 +29,5 @@ dependencies:
     - mwapi
     - pandas
     - json_repair # helps fix LLM json outputs
+    - tabulate
+    - langdetect
