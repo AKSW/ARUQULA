@@ -25,6 +25,5 @@ Our contribution to the Text2Sparql-Challenge will appear soon:
   title     = {{ARUQULA} - An {LLM} based {Text2SPARQL} Approach using {ReAct} and Knowledge Graph Exploration Utilities},
   year      = {2025},
   note      = {submitted},
-  groups    = {My-Publications},
 }
 ```
