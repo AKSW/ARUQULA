@@ -10,6 +10,7 @@ dependencies:
   - pip:
     - redis==5.2.1
     - flask
+    - flask-cors
     - invoke # used for running multi-part commands. A more Python-friendly alternative to Make
     - datasets
     - docker

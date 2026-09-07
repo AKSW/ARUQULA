@@ -44,6 +44,21 @@ DATASETS = {
         "lookup_url": {
             "en": os.environ.get("ORG_LOOKUP_SERVICE_URL", "http://localhost:8084/api/search")
         }
+    },
+    "https://text2sparql.aksw.org/2026/corporate/": {
+        "endpoint_url": os.environ.get("ORG_SPARQL_SERVICE_URL", "https://data.aksw.org/text2sparql-2026-corporate-kg/"),
+        "label": "Corporate",
+        "lookup_url": {
+            "en": os.environ.get("ORG_LOOKUP_SERVICE_URL", "http://localhost:8084/api/search")
+        }
+    },
+    "https://text2sparql.aksw.org/2026/dbpedia/": {
+        "endpoint_url": os.environ.get("DBPEDIA_SPARQL_SERVICE_URL", "https://copper.coypu.org/text2sparql-2025-dbpedia"),
+        "label": "DBpedia",
+        "lookup_url": {
+            "en": os.environ.get("DBPEDIA_LOOKUP_SERVICE_URL", "http://localhost:8082/api/search"),
+            "es": os.environ.get("DBPEDIA_ES_LOOKUP_SERVICE_URL", "http://localhost:8083/api/search")
+        }
     }
 }
 

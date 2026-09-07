@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import cross_origin
 import asyncio
 import time
 import os
@@ -14,7 +15,9 @@ from spinach_agent.evaluate_parser import post_processing
 
 KNOWN_DATASETS = [
     "https://text2sparql.aksw.org/2025/dbpedia/",
-    "https://text2sparql.aksw.org/2025/corporate/"
+    "https://text2sparql.aksw.org/2025/corporate/",
+    "https://text2sparql.aksw.org/2026/dbpedia/",
+    "https://text2sparql.aksw.org/2026/corporate/"
 ]
 
 def t2s(question, dataset_id, parser):
@@ -26,7 +29,9 @@ def t2s(question, dataset_id, parser):
         regex_use_select_distinct_and_id_not_label=True,
         llm_extract_prediction_if_null=True
     ))
-    return results[0].get("predicted_sparql")
+
+    actions = results[0].get("actions")
+    return results[0].get("predicted_sparql"), [ str(a) for a in actions ]
 
 def write_query_log(ip, dataset, question, sparql):
     file_exists = os.path.isfile(QUERY_LOG_FILE_PATH)
@@ -57,6 +62,7 @@ def create_app():
         return jsonify(status="ok"), 200
 
     @app.route('/text2sparql', methods=["GET"])
+    @cross_origin()
     def text2sparql():
 
         question = request.args.get("question", type=str)
@@ -77,7 +83,7 @@ def create_app():
             semantic_parser_class.initialize(engine=LLM_ENGINE, dataset_id=dataset)
 
             start = time.time()
-            sparql = t2s(question, dataset, semantic_parser_class)
+            sparql, action_history = t2s(question, dataset, semantic_parser_class)
             duration = time.time() - start
             print(f"It took {int(duration)}s to answer the query: '{question}' on dataset <{dataset}>", flush=True)
 
@@ -91,7 +97,9 @@ def create_app():
             return {
                 "query": sparql,
                 "dataset": dataset,
-                "question": question }, 200
+                "question": question,
+                "actions": action_history 
+            }, 200
         except Exception as e:
             print(f"Exception occurred: {e}")
             return "Backend Error", 500

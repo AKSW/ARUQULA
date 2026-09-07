@@ -16,6 +16,7 @@ COPY . /app
 WORKDIR /app
 
 ## install anaconda and pip deps
+RUN /root/anaconda3/bin/conda tos accept
 RUN /root/anaconda3/bin/conda env create -f conda_env.yaml
 
 COPY deploy/app/app.py /app

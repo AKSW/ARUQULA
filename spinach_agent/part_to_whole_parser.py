@@ -147,7 +147,7 @@ class PartToWholeParser(BaseParser):
                 actions=[],
                 response="",
                 dataset=dataset_id,
-                language=detect(input["question"])
+                language="en",
                 # generated_sparqls=[],
             )
 
@@ -273,7 +273,7 @@ class PartToWholeParser(BaseParser):
             state["action_counter"] -= move_back_on_duplicate_action
             return "controller"
 
-        if state["action_counter"] >= 15:
+        if state["action_counter"] >= 25:
             return "reporter"
         
         return state["actions"][-1].action_name
@@ -508,11 +508,11 @@ class PartToWholeParser(BaseParser):
                 include_observation = False
             action_history.append(a.to_jinja_string(include_observation))
         
-        language = await PartToWholeParser.language_detection_chain.ainvoke(
-            {
-                "question": state["question"],
-            }
-        )
+        language = "en" #await PartToWholeParser.language_detection_chain.ainvoke(
+        #     {
+        #         "question": state["question"],
+        #     }
+        # )
         
         response = await PartToWholeParser.reporter_chain.ainvoke(
             {
